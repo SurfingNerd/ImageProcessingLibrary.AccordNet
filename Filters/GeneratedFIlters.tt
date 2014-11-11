@@ -1,0 +1,194 @@
+﻿<#@ template debug="false" hostspecific="true" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Reflection" #>
+
+<#@ output extension=".cs" #>
+//The Code in this file is generated, any changes are deleted the next time the code gets generated.
+//You are able to store your changes if you edit the T4 Template.
+
+using global::AForge.Imaging.Filters;
+using System;
+using System.Collections.Generic;
+using global::AForge.Imaging;
+using ImageProcessingLibrary.AForge;
+using ImageProcessingLibrary;
+
+namespace ImageProcessingLibrary.AccordNet.Filters
+{
+
+<#
+//string m_assemblyLocation = FindDll(System.IO.Path.GetDirectoryName(this.Host.TemplateFile), "AForge", 5);
+	//m_assemblyLocation = 	//we add the location to the DLL Lookup Directories
+	//Assembly.Load(File.ReadAllBytes(m_assemblyLocation));
+
+	AppDomain currentDomain = AppDomain.CurrentDomain;
+	currentDomain.AssemblyResolve += new ResolveEventHandler(LoadFromAssemblyLocation);
+	var aforgeDLL = FindDll(Host, "Accord.Imaging");
+	//aforgeDLL.Load();
+	
+
+	Assembly aForge = System.Reflection.Assembly.Load("Accord.Imaging");
+	
+	foreach(Type type in aForge.GetExportedTypes().Where(
+								x=>ContainsStandardConstruktor(x)
+							&& SupportsInterface(x, "AForge.Imaging.Filters.IInPlaceFilter")
+							&& !x.IsAbstract))
+    {
+		#>
+
+
+	public class <#= type.Name #>Activity : AForgeActivity
+	{
+		<#
+			foreach (var property in type.GetProperties().Where(
+				x=>x.CanWrite))
+            {
+				WriteLine("public " + GetFriendlyTypeName(property.PropertyType)+ " " + property.Name + " { get;set;}");
+		    }
+		#>
+
+		public <#= type.Name #>Activity()
+		{
+		    //reading out the frmaeworks default values.
+		    var tmp = new global::<#=type.FullName#>();
+		  <#
+			foreach (var property in type.GetProperties().Where(
+				x=>x.CanWrite && x.CanRead))
+            {
+				WriteLine("this." + property.Name + " = tmp." + property.Name + ";");
+		    }
+		   #>
+
+		}
+
+		protected override IInPlaceFilter GetFilter(ActivityContext context)
+        {
+			var result = new global::<#=type.FullName#>();
+			<#
+			foreach (var property in type.GetProperties().Where(
+				x=>x.CanWrite))
+            {
+				WriteLine("result." + property.Name + " = this." + property.Name + ";");
+		    }
+		#>
+		   return result;
+        }
+
+
+	}
+		<#
+	} //end for each
+	
+
+    //                            where t.IsSubclassOf(System.Type.GetType("Chronis.GameEngine.Actions.GameAction,Logic.SL"))
+    //                            select t;
+#>
+}
+//Loaded from <#=m_assembliesDirectory#>
+<#+
+ string m_assemblyLocation; // = FindDll(System.IO.Path.GetDirectoryName(this.Host.TemplateFile), "AForge", 5);
+ string m_assembliesDirectory;
+
+public string FindDll( Microsoft.VisualStudio.TextTemplating.ITextTemplatingEngineHost host, string assembly)
+{
+	WriteLine("// Searching Assembly for Reflection: " + assembly); 
+	string result = FindDll(System.IO.Path.GetDirectoryName(host.TemplateFile), assembly, 5);
+	m_assembliesDirectory = System.IO.Path.GetDirectoryName(result);
+	m_assemblyLocation = result;
+	WriteLine("//" + assembly+ " found: " + m_assemblyLocation);
+	WriteLine("//Added to Dll lookup Dir: " + m_assembliesDirectory);
+
+	return result;
+}
+
+public static bool ContainsStandardConstruktor(Type type)
+{
+	return type.GetConstructor(new Type[0]) != null;
+}
+
+public static bool SupportsInterface(Type type, string interfaceName)
+{
+	return type.GetInterface(interfaceName) != null;
+}
+
+public string FindDll(string initialPath, string assemblyName, int maxSearchDepth)
+{
+    return FindDll(initialPath, assemblyName, null, maxSearchDepth);
+}
+
+public string FindDll(string initialPath, string assemblyName, string excludeDir, int maxParentSearchDepth)
+{
+    string pathToCheck = System.IO.Path.Combine(initialPath, assemblyName + ".dll");
+	WriteLine("//Scanning Path for dll " + assemblyName + " : " + pathToCheck);
+	
+    if (System.IO.File.Exists(pathToCheck))
+        return pathToCheck;
+
+    //Search down from current Location
+    foreach (string directory in System.IO.Directory.GetDirectories(initialPath))
+    {
+        if ( directory != excludeDir )
+        {
+            string found = FindDll(directory, assemblyName, null, 0);
+            if (!string.IsNullOrEmpty(found))
+            {
+                return found;
+            }
+        }
+    }
+
+    //If still now found, go to parent directory, if possible
+    if (maxParentSearchDepth > 0)
+    {
+        return FindDll(System.IO.Directory.GetParent(initialPath).FullName, assemblyName, initialPath, maxParentSearchDepth - 1);
+    }
+
+    return null;        
+}
+
+Assembly LoadFromAssemblyLocation(object sender, ResolveEventArgs args)
+{
+	if ( string.IsNullOrEmpty(m_assembliesDirectory))
+		m_assembliesDirectory = @"C:\DEV\ChronisSvn\trunk\ChronisResourceServer\ImageProcessingLibrary\ImageProcessingLibrary\bin\Debug";
+		//throw new InvalidOperationException(args.Name + " Assembly could not be found!");
+    
+	string folderPath = Path.GetDirectoryName(m_assemblyLocation);
+    string assemblyPath = Path.Combine(folderPath, new AssemblyName(args.Name).Name + ".dll");
+	//WriteLine("// Checking Assembly path: " + assemblyPath);
+    if (File.Exists(assemblyPath) == false) return null;
+    Assembly assembly = Assembly.LoadFrom(assemblyPath);
+    return assembly;
+}
+
+				public static string GetFriendlyTypeName(Type type)
+				{
+					string friendlyName = type.Name;
+					if (type.IsGenericType)
+					{
+						int iBacktick = friendlyName.IndexOf('`');
+						if (iBacktick > 0)
+						{
+							friendlyName = friendlyName.Remove(iBacktick);
+						}
+						friendlyName += "<";
+						Type[] typeParameters = type.GetGenericArguments();
+						for (int i = 0; i < typeParameters.Length; ++i)
+						{
+							string typeParamName = GetFriendlyTypeName(typeParameters[i]);
+							friendlyName += (i == 0 ? typeParamName : "," + typeParamName);
+						}
+						friendlyName += ">";
+						friendlyName = "global::" + type.Namespace + "." + friendlyName;
+					}
+					else
+					{
+						friendlyName = "global::" + type.FullName;
+					}
+
+					return friendlyName.Replace('+', '.');
+				}
+#>
